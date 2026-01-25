@@ -89,14 +89,33 @@ export function ContentEditor({ content, onSave, onCancel }: ContentEditorProps)
             {content ? 'قم بتحديث محتواك الحالي' : 'ابدأ رحلتك الإبداعية'}
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={onCancel}
-          className="flex items-center gap-2"
-        >
-          <X className="w-4 h-4" />
-          إلغاء
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={onCancel}
+            className="flex items-center gap-2"
+          >
+            <X className="w-4 h-4" />
+            إلغاء
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={isSaving}
+            className="flex items-center gap-2 min-w-[120px]"
+          >
+            {isSaving ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                جارٍ الحفظ...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                {content ? 'تحديث' : 'حفظ'}
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -181,37 +200,9 @@ export function ContentEditor({ content, onSave, onCancel }: ContentEditorProps)
           />
         </Card>
 
-        {/* Actions */}
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            الحقول المعلمة بـ <span className="text-destructive">*</span> إلزامية
-          </div>
-          <div className="flex items-center gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onCancel}
-            >
-              إلغاء
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSaving}
-              className="flex items-center gap-2 min-w-[120px]"
-            >
-              {isSaving ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  جارٍ الحفظ...
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  {content ? 'تحديث' : 'حفظ'}
-                </>
-              )}
-            </Button>
-          </div>
+        {/* Note */}
+        <div className="text-sm text-muted-foreground">
+          الحقول المعلمة بـ <span className="text-destructive">*</span> إلزامية
         </div>
       </form>
     </div>
