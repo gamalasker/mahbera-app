@@ -473,7 +473,9 @@ ${allContent}
         }
       };
 
+
       let successCount = 0;
+      const usedFileNames = new Set<string>();
 
       // Sort contents from oldest to newest
       const sortedContents = [...contents].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
@@ -504,10 +506,18 @@ ${body}
 {\\cf2\\i ${footer}}
 }`;
 
-        // Create a safe filename
-        const safeName = content.title.replace(/[^\w\u0600-\u06FF]/g, '_').trim() || 'bez_onwan';
-        // Ensure unique filename if needed is handled by FS usually overwriting, but let's just write.
-        // We will append .rtf
+        // Create a safe filename with unique numbering for duplicates
+        let safeName = content.title.replace(/[^\w\u0600-\u06FF]/g, '_').trim() || 'بدون_عنوان';
+
+        // Check if this filename was already used and add number suffix if needed
+        const baseFileName = safeName;
+        let fileIndex = 1;
+        while (usedFileNames.has(safeName)) {
+          safeName = `${baseFileName}_${fileIndex}`;
+          fileIndex++;
+        }
+        usedFileNames.add(safeName);
+
         const fileName = `${safeName}.rtf`;
 
         try {
@@ -517,6 +527,9 @@ ${body}
           await writable.write(rtfDoc);
           await writable.close();
           successCount++;
+
+          // Add small delay between file operations to prevent browser throttling
+          await new Promise(resolve => setTimeout(resolve, 50));
         } catch (err) {
           console.error(`Failed to separate export ${fileName}:`, err);
         }
