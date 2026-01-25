@@ -61,6 +61,13 @@ export function ContentList({
     }
   };
 
+  // Helper function to strip HTML tags for preview
+  const stripHtml = (html: string): string => {
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    return (tempDiv.textContent || tempDiv.innerText || '').trim();
+  };
+
   const getTypeLabel = (type: Content['type']) => {
     switch (type) {
       case 'story':
@@ -185,7 +192,7 @@ export function ContentList({
                 </h3>
 
                 <p className="text-muted-foreground text-sm line-clamp-3 mb-4">
-                  {content.content.slice(0, 150)}...
+                  {stripHtml(content.content).slice(0, 150)}...
                 </p>
 
                 {content.tags.length > 0 && (
