@@ -46,6 +46,7 @@ export function ContentList({
 }: ContentListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [publishFilter, setPublishFilter] = useState<'all' | 'published' | 'draft'>('all');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title'>('newest');
 
   const getTypeIcon = (type: Content['type']) => {
@@ -89,7 +90,11 @@ export function ContentList({
 
       const matchesType = typeFilter === 'all' || content.type === typeFilter;
 
-      return matchesSearch && matchesType;
+      const matchesPublish = publishFilter === 'all' ||
+        (publishFilter === 'published' && content.isPublished) ||
+        (publishFilter === 'draft' && !content.isPublished);
+
+      return matchesSearch && matchesType && matchesPublish;
     })
     .sort((a, b) => {
       switch (sortBy) {
@@ -130,6 +135,17 @@ export function ContentList({
               <SelectItem value="article">مقالات</SelectItem>
               <SelectItem value="poem">قصائد</SelectItem>
               <SelectItem value="novel">روايات</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={publishFilter} onValueChange={(value) => setPublishFilter(value as any)}>
+            <SelectTrigger className="w-[120px]">
+              <SelectValue placeholder="الحالة" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">الكل</SelectItem>
+              <SelectItem value="published">منشور</SelectItem>
+              <SelectItem value="draft">مخفي</SelectItem>
             </SelectContent>
           </Select>
 
