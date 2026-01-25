@@ -158,7 +158,9 @@ ${'-'.repeat(50)}
   }, []);
 
   const exportAllToText = useCallback(async () => {
-    const allText = contents.map(content => {
+    // Sort contents from oldest to newest
+    const sortedContents = [...contents].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    const allText = sortedContents.map(content => {
       const plainContent = stripHtml(content.content);
       return `
 ${content.title}
@@ -386,7 +388,9 @@ ${body}
       }
     };
 
-    const allContent = contents.map(content => {
+    // Sort contents from oldest to newest
+    const sortedContents = [...contents].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    const allContent = sortedContents.map(content => {
       const title = textToRtf(content.title);
       const typeLabel = textToRtf(getTypeLabel(content.type));
       const date = textToRtf(content.createdAt.toLocaleDateString('ar-SA'));
@@ -471,7 +475,9 @@ ${allContent}
 
       let successCount = 0;
 
-      for (const content of contents) {
+      // Sort contents from oldest to newest
+      const sortedContents = [...contents].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      for (const content of sortedContents) {
         // Prepare RTF content for this item
         const title = textToRtf(content.title);
         const typeLabel = textToRtf(getTypeLabel(content.type));
