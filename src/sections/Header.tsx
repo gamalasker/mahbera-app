@@ -10,6 +10,7 @@ import {
 import { useRef, useState } from 'react';
 import type { DriveStatus } from '@/hooks/useGoogleDrive';
 import { DriveSetupDialog } from '@/components/DriveSetupDialog';
+import { ModeToggle } from '@/components/mode-toggle';
 
 interface HeaderProps {
   onNewContent: () => void;
@@ -88,6 +89,7 @@ export function Header({ onNewContent, onExportAll, onImport, contentCount, driv
 
           {/* Actions */}
           <div className="flex items-center gap-2">
+            <ModeToggle />
             {/* Hidden file input for import */}
             <input
               type="file"
