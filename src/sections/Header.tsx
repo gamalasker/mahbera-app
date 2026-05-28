@@ -1,21 +1,27 @@
-import { Pen, BookOpen, FileText, Feather, Upload, ChevronDown } from 'lucide-react';
+import { Pen, BookOpen, FileText, Feather, Upload, ChevronDown, CloudIcon, CloudOff, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useRef } from 'react';
+import type { DriveStatus } from '@/hooks/useGoogleDrive';
 
 interface HeaderProps {
   onNewContent: () => void;
   onExportAll: (format: 'txt' | 'rtf' | 'rtf-separate') => void;
   onImport: (file: File) => void;
   contentCount: number;
+  driveStatus: DriveStatus;
+  driveLastSynced: Date | null;
+  onDriveSignIn: () => void;
+  onDriveSignOut: () => void;
 }
 
-export function Header({ onNewContent, onExportAll, onImport, contentCount }: HeaderProps) {
+export function Header({ onNewContent, onExportAll, onImport, contentCount, driveStatus, driveLastSynced, onDriveSignIn, onDriveSignOut }: HeaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImportClick = () => {
@@ -29,6 +35,28 @@ export function Header({ onNewContent, onExportAll, onImport, contentCount }: He
       // Reset input to allow importing the same file again
       e.target.value = '';
     }
+  };
+
+  // ── Drive status helpers ──────────────────────────────────────────────────
+  const driveIcon = () => {
+    if (driveStatus === 'connecting' || driveStatus === 'syncing')
+      return <Loader2 className="w-4 h-4 animate-spin" />;
+    if (driveStatus === 'connected')
+      return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+    if (driveStatus === 'error')
+      return <AlertCircle className="w-4 h-4 text-destructive" />;
+    return <CloudOff className="w-4 h-4" />;
+  };
+
+  const driveLabel = () => {
+    if (driveStatus === 'connecting') return 'جاري الاتصال...';
+    if (driveStatus === 'syncing') return 'جاري المزامنة...';
+    if (driveStatus === 'connected')
+      return driveLastSynced
+        ? `آخر مزامنة ${driveLastSynced.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}`
+        : 'متصل بجوجل درايف';
+    if (driveStatus === 'error') return 'خطأ في المزامنة';
+    return 'ربط بجوجل درايف';
   };
 
   return (
@@ -66,6 +94,46 @@ export function Header({ onNewContent, onExportAll, onImport, contentCount }: He
               accept=".txt,.md,.text"
               className="hidden"
             />
+
+            {/* Google Drive button */}
+            {driveStatus === 'disconnected' || driveStatus === 'error' ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onDriveSignIn}
+                className="hidden sm:flex items-center gap-2"
+              >
+                <CloudIcon className="w-4 h-4" />
+                ربط بجوجل درايف
+              </Button>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="hidden sm:flex items-center gap-2"
+                  >
+                    {driveIcon()}
+                    <span className="max-w-[140px] truncate">{driveLabel()}</span>
+                    <ChevronDown className="w-3 h-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                    جوجل درايف مرتبط
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={onDriveSignOut}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <CloudOff className="w-4 h-4 ml-2" />
+                    قطع الاتصال
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
             <Button
               variant="outline"
               size="sm"

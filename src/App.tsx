@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Toaster, toast } from 'sonner';
 import { Header } from '@/sections/Header';
 import { ContentList } from '@/sections/ContentList';
 import { ContentEditor } from '@/sections/ContentEditor';
 import { ContentViewer } from '@/sections/ContentViewer';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useGoogleDrive } from '@/hooks/useGoogleDrive';
 import type { Content, ContentFormData, ViewMode } from '@/types';
 import './App.css';
 
@@ -20,6 +21,7 @@ function App() {
     deleteContent,
     togglePublish,
     getContent,
+    replaceContents,
     exportToText,
     exportAllToText,
     exportToRtf,
@@ -27,6 +29,27 @@ function App() {
     exportAllSeparately,
     importFromFile
   } = useLocalStorage();
+
+  const {
+    status: driveStatus,
+    lastSynced: driveLastSynced,
+    error: driveError,
+    signIn: driveSignIn,
+    signOut: driveSignOut,
+    scheduleSyncToDrive,
+  } = useGoogleDrive(replaceContents);
+
+  // Auto-sync to Drive whenever contents change (after initial load)
+  useEffect(() => {
+    if (isLoaded) {
+      scheduleSyncToDrive(contents);
+    }
+  }, [contents, isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Show Drive error as toast
+  useEffect(() => {
+    if (driveError) toast.error(driveError);
+  }, [driveError]);
 
   const handleNewContent = () => {
     setSelectedContent(null);
@@ -185,6 +208,10 @@ function App() {
         onExportAll={handleExportAll}
         onImport={handleImport}
         contentCount={contents.length}
+        driveStatus={driveStatus}
+        driveLastSynced={driveLastSynced}
+        onDriveSignIn={driveSignIn}
+        onDriveSignOut={driveSignOut}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

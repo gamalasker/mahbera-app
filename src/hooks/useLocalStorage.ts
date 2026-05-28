@@ -544,6 +544,11 @@ ${body}
     }
   }, [contents]);
 
+  // Replace all contents (used when loading from Google Drive)
+  const replaceContents = useCallback((incoming: Content[]) => {
+    setContents(incoming);
+  }, []);
+
   return {
     contents,
     isLoaded,
@@ -552,6 +557,7 @@ ${body}
     deleteContent,
     togglePublish,
     getContent,
+    replaceContents,
     exportToText,
     exportAllToText,
     exportToRtf,
