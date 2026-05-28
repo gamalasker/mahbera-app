@@ -1,4 +1,4 @@
-import { Pen, BookOpen, FileText, Feather, Upload, ChevronDown, CloudIcon, CloudOff, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Pen, BookOpen, FileText, Feather, Upload, ChevronDown, CloudIcon, CloudOff, Loader2, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -21,9 +21,10 @@ interface HeaderProps {
   driveScriptUrl: string;
   onDriveConnect: (url: string) => void;
   onDriveDisconnect: () => void;
+  onDrivePullNow: () => void;
 }
 
-export function Header({ onNewContent, onExportAll, onImport, contentCount, driveStatus, driveLastSynced, driveScriptUrl, onDriveConnect, onDriveDisconnect }: HeaderProps) {
+export function Header({ onNewContent, onExportAll, onImport, contentCount, driveStatus, driveLastSynced, driveScriptUrl, onDriveConnect, onDriveDisconnect, onDrivePullNow }: HeaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [driveDialogOpen, setDriveDialogOpen] = useState(false);
 
@@ -126,12 +127,20 @@ export function Header({ onNewContent, onExportAll, onImport, contentCount, driv
                     {driveStatus === 'error' ? 'خطأ في الاتصال' : 'جوجل درايف مرتبط'}
                   </div>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={onDrivePullNow}
+                    disabled={driveStatus === 'syncing'}
+                  >
+                    <RefreshCw className="w-4 h-4 ml-2" />
+                    سحب التغييرات الآن
+                  </DropdownMenuItem>
                   {driveStatus === 'error' && (
                     <DropdownMenuItem onClick={() => setDriveDialogOpen(true)}>
                       <CloudIcon className="w-4 h-4 ml-2" />
                       إعادة الإعداد
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={onDriveDisconnect}
                     className="text-destructive focus:text-destructive"

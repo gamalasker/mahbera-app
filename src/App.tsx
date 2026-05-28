@@ -38,6 +38,7 @@ function App() {
     connect: driveConnect,
     disconnect: driveDisconnect,
     scheduleSyncToDrive,
+    pullNow: drivePullNow,
   } = useGoogleDrive(replaceContents);
 
   // Auto-sync to Drive whenever contents change (after initial load)
@@ -223,6 +224,7 @@ function App() {
         driveScriptUrl={driveScriptUrl}
         onDriveConnect={driveConnect}
         onDriveDisconnect={driveDisconnect}
+        onDrivePullNow={drivePullNow}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
