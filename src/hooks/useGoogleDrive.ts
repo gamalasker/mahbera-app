@@ -4,34 +4,51 @@ import type { Content } from '@/types';
 const LS_SCRIPT_URL  = 'mahbera_drive_script_url';
 const LS_LAST_SYNCED = 'mahbera_drive_last_synced';
 
-const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzKwsXbJIGJnMlJqBPnDWiGjVcsmullClyDdusb-516jfG4QyqPYGF3XGwf_Zfy18yK8w/exec';
+const DEFAULT_SCRIPT_URL =
+  'https://script.google.com/macros/s/AKfycbzKwsXbJIGJnMlJqBPnDWiGjVcsmullClyDdusb-516jfG4QyqPYGF3XGwf_Zfy18yK8w/exec';
 
-const getScriptUrl = () =>
-  localStorage.getItem(LS_SCRIPT_URL) || DEFAULT_SCRIPT_URL;
+const POLL_MS  = 10_000; // 10 s between polls
+const PUSH_MS  = 2_000;  // 2 s debounce before push
+
+const getUrl = () => localStorage.getItem(LS_SCRIPT_URL) || DEFAULT_SCRIPT_URL;
 
 export type DriveStatus = 'disconnected' | 'syncing' | 'connected' | 'error';
 
-// ── Fingerprint: compare by count + IDs + latest timestamp ───────────────────
-function fingerprint(contents: Content[]): string {
-  if (contents.length === 0) return 'empty';
-  const ids = contents.map(c => c.id).sort().join(',');
-  const maxTs = contents.reduce(
-    (m, c) => Math.max(m, new Date(c.updatedAt).getTime()), 0,
-  );
-  return `${contents.length}|${maxTs}|${ids}`;
+// ── fingerprint: sorted "id:ts" pairs ────────────────────────────────────────
+function fp(items: Content[]): string {
+  if (!items.length) return '';
+  return items
+    .map(c => `${c.id}:${new Date(c.updatedAt).getTime()}`)
+    .sort()
+    .join('|');
 }
 
-// ── GET from Apps Script ──────────────────────────────────────────────────────
-async function fetchFromScript(url: string): Promise<Content[]> {
+// ── merge: union of local+remote, newer updatedAt wins per ID ────────────────
+function smartMerge(local: Content[], remote: Content[]): Content[] {
+  if (!remote.length) return local;
+  if (!local.length)  return remote;
+  const map = new Map<string, Content>();
+  for (const item of remote) map.set(item.id, item);
+  for (const item of local) {
+    const ex = map.get(item.id);
+    if (!ex || new Date(item.updatedAt) > new Date(ex.updatedAt))
+      map.set(item.id, item);
+  }
+  return Array.from(map.values())
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+// ── GET ───────────────────────────────────────────────────────────────────────
+async function fetchRemote(url: string): Promise<Content[]> {
   const res = await fetch(`${url}?t=${Date.now()}`, {
     method: 'GET',
-    cache: 'no-store',
+    cache:  'no-store',
     redirect: 'follow',
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const text = await res.text();
   let data: unknown;
-  try { data = JSON.parse(text); } catch { throw new Error('استجابة غير صالحة'); }
+  try { data = JSON.parse(text); } catch { return []; }
   if (!Array.isArray(data)) return [];
   return (data as any[]).map(item => ({
     ...item,
@@ -40,84 +57,77 @@ async function fetchFromScript(url: string): Promise<Content[]> {
   }));
 }
 
-// ── POST to Apps Script ───────────────────────────────────────────────────────
-// No Content-Type header → browser treats as text/plain → simple request (no preflight).
-// Apps Script processes the POST, then sends a 302 redirect to serve the response.
-// If regular fetch fails (strict mobile browser), fall back to no-cors (fire-and-forget).
-async function postToScript(url: string, contents: Content[]): Promise<void> {
-  try {
-    await fetch(url, {
-      method: 'POST',
-      body: JSON.stringify(contents),
-      redirect: 'follow',
-    });
-  } catch {
-    // Fallback for browsers that block cross-origin redirects
-    await fetch(url, {
-      method: 'POST',
-      mode: 'no-cors',
-      body: JSON.stringify(contents),
-    });
-  }
+// ── POST (fire-and-forget, no-cors = works on every browser/mobile) ───────────
+function pushRemote(url: string, contents: Content[]): void {
+  fetch(url, {
+    method: 'POST',
+    mode:   'no-cors',
+    body:   JSON.stringify(contents),
+  }).catch(() => {});
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Hook
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function useGoogleDrive(onContentsLoaded: (contents: Content[]) => void) {
+export function useGoogleDrive(onLoad: (contents: Content[]) => void) {
   const [status, setStatus] = useState<DriveStatus>('syncing');
   const [lastSynced, setLastSynced] = useState<Date | null>(() => {
     const s = localStorage.getItem(LS_LAST_SYNCED);
     return s ? new Date(s) : null;
   });
-  const [error, setError]         = useState<string | null>(null);
-  const [scriptUrl, setScriptUrl] = useState(
-    () => localStorage.getItem(LS_SCRIPT_URL) ?? DEFAULT_SCRIPT_URL,
-  );
+  const [error,     setError]     = useState<string | null>(null);
+  const [scriptUrl, setScriptUrl] = useState(() => getUrl());
 
-  const syncTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pushTimer  = useRef<ReturnType<typeof setTimeout>  | null>(null);
   const pollTimer  = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pendingRef = useRef<Content[] | null>(null);
-  const lastFpRef  = useRef<string>(''); // fingerprint of last known Drive state
-  const onLoadRef  = useRef(onContentsLoaded);
-  onLoadRef.current = onContentsLoaded;
+  const retryTimer = useRef<ReturnType<typeof setTimeout>  | null>(null);
+  const pending    = useRef<Content[] | null>(null);
+  const localRef   = useRef<Content[]>([]);   // mirror of current contents
+  const remoteFpRef = useRef('');              // fp of last known Drive state
+  const onLoadRef  = useRef(onLoad);
+  onLoadRef.current = onLoad;
 
-  const POLL_INTERVAL = 15_000; // 15 seconds
-
-  const markSynced = () => {
+  // ── helpers ─────────────────────────────────────────────────────────────────
+  const markSynced = useCallback(() => {
     const now = new Date();
     setLastSynced(now);
     localStorage.setItem(LS_LAST_SYNCED, now.toISOString());
-  };
-
-  // ── Pull: fetch from Drive, update local only if data changed ────────────
-  const pullFromDrive = useCallback(async () => {
-    const url = getScriptUrl();
-    if (!url) return;
-    try {
-      const remote = await fetchFromScript(url);
-      const fp = fingerprint(remote);
-      if (fp !== lastFpRef.current) {
-        lastFpRef.current = fp;
-        if (remote.length > 0) onLoadRef.current(remote);
-        markSynced();
-      }
-    } catch (e) {
-      console.warn('Drive pull error:', e);
-    }
   }, []);
-
-  const startPolling = useCallback(() => {
-    if (pollTimer.current) clearInterval(pollTimer.current);
-    pollTimer.current = setInterval(pullFromDrive, POLL_INTERVAL);
-  }, [pullFromDrive]);
 
   const stopPolling = useCallback(() => {
-    if (pollTimer.current) { clearInterval(pollTimer.current); pollTimer.current = null; }
+    if (pollTimer.current)  { clearInterval(pollTimer.current);  pollTimer.current  = null; }
+    if (retryTimer.current) { clearTimeout(retryTimer.current);  retryTimer.current = null; }
   }, []);
 
-  // ── Connect ───────────────────────────────────────────────────────────────
+  // ── pull ─────────────────────────────────────────────────────────────────────
+  const pull = useCallback(async () => {
+    const url = getUrl();
+    try {
+      const remote = await fetchRemote(url);
+      const rfp = fp(remote);
+      // Always apply if Drive fingerprint changed
+      if (rfp !== remoteFpRef.current) {
+        remoteFpRef.current = rfp;
+        const merged = smartMerge(localRef.current, remote);
+        onLoadRef.current(merged);
+        markSynced();
+        // If merged has more items than remote (local had items not in Drive), push back
+        if (merged.length > remote.length) {
+          pushRemote(url, merged);
+        }
+      }
+      setError(null);
+      setStatus('connected');
+    } catch {
+      // silent — poll will retry
+    }
+  }, [markSynced]);
+
+  // ── start polling ─────────────────────────────────────────────────────────────
+  const startPolling = useCallback(() => {
+    if (pollTimer.current) clearInterval(pollTimer.current);
+    pollTimer.current = setInterval(pull, POLL_MS);
+  }, [pull]);
+
+  // ── connect ───────────────────────────────────────────────────────────────────
   const connect = useCallback(async (url: string) => {
     const trimmed = url.trim();
     if (!trimmed) return;
@@ -125,78 +135,86 @@ export function useGoogleDrive(onContentsLoaded: (contents: Content[]) => void) 
     setScriptUrl(trimmed);
     setStatus('syncing');
     setError(null);
+    stopPolling();
+    startPolling(); // start polling immediately so retries happen even if initial fails
+
     try {
-      const remote = await fetchFromScript(trimmed);
-      lastFpRef.current = fingerprint(remote);
-      setStatus('connected');
-      if (remote.length > 0) onLoadRef.current(remote);
+      const remote = await fetchRemote(trimmed);
+      remoteFpRef.current = fp(remote);
+      const merged = smartMerge(localRef.current, remote);
+      onLoadRef.current(merged);
+      // If local had items not in Drive, push them
+      if (merged.length > remote.length) {
+        pushRemote(trimmed, merged);
+      }
       markSynced();
-      startPolling();
+      setStatus('connected');
     } catch (err) {
       console.error('Drive connect error:', err);
       setStatus('error');
-      setError('تعذر الاتصال. تأكد من رابط النشر وأن الوصول مضبوط على "الجميع".');
+      setError('تعذر الاتصال بالسيرفر، سيتم إعادة المحاولة تلقائياً كل 10 ثواني');
+      // polling already running — it will self-heal on next tick
     }
-  }, [startPolling]);
+  }, [startPolling, stopPolling, markSynced]);
 
-  // ── Disconnect ────────────────────────────────────────────────────────────
+  // ── disconnect ────────────────────────────────────────────────────────────────
   const disconnect = useCallback(() => {
-    if (syncTimer.current) clearTimeout(syncTimer.current);
+    if (pushTimer.current) clearTimeout(pushTimer.current);
     stopPolling();
     localStorage.removeItem(LS_SCRIPT_URL);
     localStorage.removeItem(LS_LAST_SYNCED);
+    remoteFpRef.current = '';
     setScriptUrl('');
     setStatus('disconnected');
     setLastSynced(null);
     setError(null);
   }, [stopPolling]);
 
-  // ── Push: debounced auto-sync ─────────────────────────────────────────────
+  // ── push (debounced) ──────────────────────────────────────────────────────────
   const scheduleSyncToDrive = useCallback((contents: Content[]) => {
-    pendingRef.current = contents;
-    if (syncTimer.current) clearTimeout(syncTimer.current);
-    syncTimer.current = setTimeout(async () => {
-      if (!pendingRef.current) return;
-      const currentUrl = getScriptUrl();
-      if (!currentUrl) return;
-      try {
-        setStatus('syncing');
-        await postToScript(currentUrl, pendingRef.current);
-        lastFpRef.current = fingerprint(pendingRef.current);
-        markSynced();
-        setStatus('connected');
-        setError(null);
-      } catch (err) {
-        console.error('Drive push error:', err);
-        setStatus('connected'); // silent fail, retry on next change
-      }
-    }, 3000);
-  }, []);
+    localRef.current = contents;
+    pending.current  = contents;
+    if (pushTimer.current) clearTimeout(pushTimer.current);
+    pushTimer.current = setTimeout(() => {
+      if (!pending.current) return;
+      const url = getUrl();
+      if (!url) return;
+      setStatus('syncing');
+      pushRemote(url, pending.current);
+      // Optimistic: mark synced immediately (no-cors = fire-and-forget)
+      remoteFpRef.current = fp(pending.current); // prevent pull from overwriting what we just pushed
+      markSynced();
+      setStatus('connected');
+    }, PUSH_MS);
+  }, [markSynced]);
 
-  // ── Manual pull now ───────────────────────────────────────────────────────
+  // ── manual pull ───────────────────────────────────────────────────────────────
   const pullNow = useCallback(async () => {
     setStatus('syncing');
-    await pullFromDrive();
-    setStatus('connected');
-  }, [pullFromDrive]);
+    remoteFpRef.current = ''; // force apply even if same fp
+    await pull();
+  }, [pull]);
 
-  // ── Auto-connect on mount + cleanup ──────────────────────────────────────
+  // ── mount ─────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    connect(getScriptUrl());
+    connect(getUrl());
     return () => {
-      if (syncTimer.current) clearTimeout(syncTimer.current);
+      if (pushTimer.current)  clearTimeout(pushTimer.current);
       stopPolling();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Pull when tab becomes visible (switching back from another app/tab) ──
+  // ── visibility: pull when tab/app becomes active ──────────────────────────────
   useEffect(() => {
     const handler = () => {
-      if (document.visibilityState === 'visible') pullFromDrive();
+      if (document.visibilityState === 'visible') {
+        remoteFpRef.current = ''; // force re-check
+        pull();
+      }
     };
     document.addEventListener('visibilitychange', handler);
     return () => document.removeEventListener('visibilitychange', handler);
-  }, [pullFromDrive]);
+  }, [pull]);
 
   return { status, lastSynced, error, scriptUrl, connect, disconnect, scheduleSyncToDrive, pullNow };
 }
