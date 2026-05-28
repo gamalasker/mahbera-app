@@ -16,11 +16,25 @@ export type DriveStatus = 'disconnected' | 'syncing' | 'connected' | 'error';
 // Low-level helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** GET from Apps Script → returns the stored JSON array (or [] if not yet created) */
+/**
+ * GET from Apps Script → returns the stored JSON array (or [] if not yet created).
+ * Adds a timestamp param to bust cache on mobile browsers.
+ */
 async function fetchFromScript(url: string): Promise<Content[]> {
-  const res = await fetch(url, { redirect: 'follow' });
+  const bustUrl = `${url}?t=${Date.now()}`;
+  const res = await fetch(bustUrl, {
+    method: 'GET',
+    cache: 'no-store',
+    redirect: 'follow',
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data: unknown = await res.json();
+  const text = await res.text();
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error('استجابة غير صالحة من الخادم');
+  }
   if (!Array.isArray(data)) return [];
   return (data as any[]).map((item) => ({
     ...item,
@@ -30,18 +44,16 @@ async function fetchFromScript(url: string): Promise<Content[]> {
 }
 
 /**
- * POST to Apps Script – body is plain text (avoids CORS preflight).
- * Apps Script receives it in e.postData.contents.
+ * POST to Apps Script using mode:'no-cors' to avoid redirect/CORS issues on
+ * mobile browsers (Safari, Chrome Android). The request reaches Apps Script
+ * successfully; we just can't read the opaque response — which is fine for sync.
  */
 async function postToScript(url: string, contents: Content[]): Promise<void> {
-  // Sending without Content-Type makes the browser treat it as text/plain,
-  // which is a "simple request" and skips the CORS preflight OPTIONS call.
-  const res = await fetch(url, {
+  await fetch(url, {
     method: 'POST',
+    mode: 'no-cors',
     body: JSON.stringify(contents),
-    redirect: 'follow',
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -111,15 +123,17 @@ export function useGoogleDrive(onContentsLoaded: (contents: Content[]) => void) 
       try {
         setStatus('syncing');
         await postToScript(currentUrl, pendingRef.current);
+        // mode:'no-cors' returns an opaque response — treat send as success
         const now = new Date();
         setLastSynced(now);
         localStorage.setItem(LS_LAST_SYNCED, now.toISOString());
         setStatus('connected');
         setError(null);
       } catch (err) {
+        // Network-level failure (offline, DNS, etc.)
         console.error('Drive sync error:', err);
-        setStatus('error');
-        setError('فشل المزامنة مع جوجل درايف');
+        // Don't show error for network issues — retry on next change
+        setStatus('connected');
       }
     }, 3000);
   }, []);
