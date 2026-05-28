@@ -202,9 +202,6 @@ export function useGoogleDrive(onContentsLoaded: (contents: Content[]) => void) 
 }
 
 
-const LS_SCRIPT_URL  = 'mahbera_drive_script_url';
-const LS_LAST_SYNCED = 'mahbera_drive_last_synced';
-
 // الرابط الافتراضي — يعمل تلقائياً على كل الأجهزة دون إعداد
 const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzKwsXbJIGJnMlJqBPnDWiGjVcsmullClyDdusb-516jfG4QyqPYGF3XGwf_Zfy18yK8w/exec';
 
