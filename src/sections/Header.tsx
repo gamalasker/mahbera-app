@@ -7,8 +7,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import type { DriveStatus } from '@/hooks/useGoogleDrive';
+import { DriveSetupDialog } from '@/components/DriveSetupDialog';
 
 interface HeaderProps {
   onNewContent: () => void;
@@ -17,12 +18,14 @@ interface HeaderProps {
   contentCount: number;
   driveStatus: DriveStatus;
   driveLastSynced: Date | null;
-  onDriveSignIn: () => void;
-  onDriveSignOut: () => void;
+  driveScriptUrl: string;
+  onDriveConnect: (url: string) => void;
+  onDriveDisconnect: () => void;
 }
 
-export function Header({ onNewContent, onExportAll, onImport, contentCount, driveStatus, driveLastSynced, onDriveSignIn, onDriveSignOut }: HeaderProps) {
+export function Header({ onNewContent, onExportAll, onImport, contentCount, driveStatus, driveLastSynced, driveScriptUrl, onDriveConnect, onDriveDisconnect }: HeaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [driveDialogOpen, setDriveDialogOpen] = useState(false);
 
   const handleImportClick = () => {
     fileInputRef.current?.click();
@@ -39,7 +42,7 @@ export function Header({ onNewContent, onExportAll, onImport, contentCount, driv
 
   // ── Drive status helpers ──────────────────────────────────────────────────
   const driveIcon = () => {
-    if (driveStatus === 'connecting' || driveStatus === 'syncing')
+    if (driveStatus === 'syncing')
       return <Loader2 className="w-4 h-4 animate-spin" />;
     if (driveStatus === 'connected')
       return <CheckCircle2 className="w-4 h-4 text-green-500" />;
@@ -49,7 +52,6 @@ export function Header({ onNewContent, onExportAll, onImport, contentCount, driv
   };
 
   const driveLabel = () => {
-    if (driveStatus === 'connecting') return 'جاري الاتصال...';
     if (driveStatus === 'syncing') return 'جاري المزامنة...';
     if (driveStatus === 'connected')
       return driveLastSynced
@@ -96,11 +98,11 @@ export function Header({ onNewContent, onExportAll, onImport, contentCount, driv
             />
 
             {/* Google Drive button */}
-            {driveStatus === 'disconnected' || driveStatus === 'error' ? (
+            {driveStatus === 'disconnected' ? (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={onDriveSignIn}
+                onClick={() => setDriveDialogOpen(true)}
                 className="hidden sm:flex items-center gap-2"
               >
                 <CloudIcon className="w-4 h-4" />
@@ -115,17 +117,23 @@ export function Header({ onNewContent, onExportAll, onImport, contentCount, driv
                     className="hidden sm:flex items-center gap-2"
                   >
                     {driveIcon()}
-                    <span className="max-w-[140px] truncate">{driveLabel()}</span>
+                    <span className="max-w-[160px] truncate">{driveLabel()}</span>
                     <ChevronDown className="w-3 h-3" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                    جوجل درايف مرتبط
+                    {driveStatus === 'error' ? 'خطأ في الاتصال' : 'جوجل درايف مرتبط'}
                   </div>
                   <DropdownMenuSeparator />
+                  {driveStatus === 'error' && (
+                    <DropdownMenuItem onClick={() => setDriveDialogOpen(true)}>
+                      <CloudIcon className="w-4 h-4 ml-2" />
+                      إعادة الإعداد
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem
-                    onClick={onDriveSignOut}
+                    onClick={onDriveDisconnect}
                     className="text-destructive focus:text-destructive"
                   >
                     <CloudOff className="w-4 h-4 ml-2" />
@@ -134,6 +142,14 @@ export function Header({ onNewContent, onExportAll, onImport, contentCount, driv
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
+
+            {/* Drive setup dialog */}
+            <DriveSetupDialog
+              open={driveDialogOpen}
+              onOpenChange={setDriveDialogOpen}
+              currentUrl={driveScriptUrl}
+              onConnect={onDriveConnect}
+            />
             <Button
               variant="outline"
               size="sm"

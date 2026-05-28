@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Toaster, toast } from 'sonner';
 import { Header } from '@/sections/Header';
 import { ContentList } from '@/sections/ContentList';
@@ -34,8 +34,9 @@ function App() {
     status: driveStatus,
     lastSynced: driveLastSynced,
     error: driveError,
-    signIn: driveSignIn,
-    signOut: driveSignOut,
+    scriptUrl: driveScriptUrl,
+    connect: driveConnect,
+    disconnect: driveDisconnect,
     scheduleSyncToDrive,
   } = useGoogleDrive(replaceContents);
 
@@ -45,6 +46,15 @@ function App() {
       scheduleSyncToDrive(contents);
     }
   }, [contents, isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Also sync immediately when Drive first connects (uploads local data if Drive was empty)
+  const prevDriveStatus = useRef(driveStatus);
+  useEffect(() => {
+    if (prevDriveStatus.current !== 'connected' && driveStatus === 'connected' && contents.length > 0) {
+      scheduleSyncToDrive(contents);
+    }
+    prevDriveStatus.current = driveStatus;
+  }, [driveStatus]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Show Drive error as toast
   useEffect(() => {
@@ -210,8 +220,9 @@ function App() {
         contentCount={contents.length}
         driveStatus={driveStatus}
         driveLastSynced={driveLastSynced}
-        onDriveSignIn={driveSignIn}
-        onDriveSignOut={driveSignOut}
+        driveScriptUrl={driveScriptUrl}
+        onDriveConnect={driveConnect}
+        onDriveDisconnect={driveDisconnect}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
