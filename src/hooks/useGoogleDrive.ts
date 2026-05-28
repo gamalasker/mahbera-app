@@ -71,10 +71,46 @@ export function useGoogleDrive(onContentsLoaded: (contents: Content[]) => void) 
     () => localStorage.getItem(LS_SCRIPT_URL) ?? DEFAULT_SCRIPT_URL,
   );
 
-  const syncTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingRef = useRef<Content[] | null>(null);
-  const onLoadRef  = useRef(onContentsLoaded);
+  const syncTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollTimer   = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pendingRef  = useRef<Content[] | null>(null);
+  // Track the last JSON string we pushed, to detect remote changes
+  const lastPushed  = useRef<string>('');
+  const onLoadRef   = useRef(onContentsLoaded);
   onLoadRef.current = onContentsLoaded;
+
+  const POLL_INTERVAL = 30_000; // 30 seconds
+
+  // ── Pull from Drive and update local if remote is different ──────────────
+  const pullFromDrive = useCallback(async () => {
+    const url = getScriptUrl();
+    if (!url) return;
+    try {
+      const contents = await fetchFromScript(url);
+      const remoteJson = JSON.stringify(contents);
+      // Only update local state if remote data differs from what we last pushed
+      if (remoteJson !== lastPushed.current && contents.length > 0) {
+        lastPushed.current = remoteJson;
+        onLoadRef.current(contents);
+        const now = new Date();
+        setLastSynced(now);
+        localStorage.setItem(LS_LAST_SYNCED, now.toISOString());
+      }
+    } catch {
+      // Silent — polling failure shouldn't disturb the user
+    }
+  }, []);
+
+  // ── Start polling ─────────────────────────────────────────────────────────
+  const startPolling = useCallback(() => {
+    if (pollTimer.current) clearInterval(pollTimer.current);
+    pollTimer.current = setInterval(pullFromDrive, POLL_INTERVAL);
+  }, [pullFromDrive]);
+
+  // ── Stop polling ──────────────────────────────────────────────────────────
+  const stopPolling = useCallback(() => {
+    if (pollTimer.current) { clearInterval(pollTimer.current); pollTimer.current = null; }
+  }, []);
 
   // ── Connect with a script URL ─────────────────────────────────────────────
   const connect = useCallback(async (url: string) => {
@@ -90,25 +126,28 @@ export function useGoogleDrive(onContentsLoaded: (contents: Content[]) => void) 
       const contents = await fetchFromScript(trimmed);
       setStatus('connected');
       if (contents.length > 0) {
+        lastPushed.current = JSON.stringify(contents);
         onLoadRef.current(contents);
       }
+      startPolling();
     } catch (err) {
       console.error('Drive connect error:', err);
       setStatus('error');
       setError('تعذر الاتصال. تأكد من رابط النشر وأن الوصول مضبوط على "الجميع".');
     }
-  }, []);
+  }, [startPolling]);
 
   // ── Disconnect ────────────────────────────────────────────────────────────
   const disconnect = useCallback(() => {
     if (syncTimer.current) clearTimeout(syncTimer.current);
+    stopPolling();
     localStorage.removeItem(LS_SCRIPT_URL);
     localStorage.removeItem(LS_LAST_SYNCED);
     setScriptUrl('');
     setStatus('disconnected');
     setLastSynced(null);
     setError(null);
-  }, []);
+  }, [stopPolling]);
 
   // ── Debounced auto-sync (3 s after last change) ───────────────────────────
   const scheduleSyncToDrive = useCallback((contents: Content[]) => {
@@ -122,8 +161,10 @@ export function useGoogleDrive(onContentsLoaded: (contents: Content[]) => void) 
 
       try {
         setStatus('syncing');
+        const json = JSON.stringify(pendingRef.current);
         await postToScript(currentUrl, pendingRef.current);
         // mode:'no-cors' returns an opaque response — treat send as success
+        lastPushed.current = json; // remember what we pushed to avoid false pull
         const now = new Date();
         setLastSynced(now);
         localStorage.setItem(LS_LAST_SYNCED, now.toISOString());
@@ -138,10 +179,23 @@ export function useGoogleDrive(onContentsLoaded: (contents: Content[]) => void) 
     }, 3000);
   }, []);
 
-  // ── Auto-connect on mount (uses saved URL or default) ───────────────────
+  // ── Auto-connect on mount + cleanup on unmount ────────────────────────────
   useEffect(() => {
     connect(getScriptUrl());
+    return () => {
+      if (syncTimer.current) clearTimeout(syncTimer.current);
+      stopPolling();
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Sync when tab becomes visible again (e.g. switching device → tab) ────
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') pullFromDrive();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [pullFromDrive]);
 
   return { status, lastSynced, error, scriptUrl, connect, disconnect, scheduleSyncToDrive };
 }
