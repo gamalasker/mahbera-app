@@ -1,20 +1,20 @@
 ﻿import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Content } from '@/types';
 
-const LS_SCRIPT_URL  = 'mahbera_drive_script_url';
 const LS_LAST_SYNCED = 'mahbera_drive_last_synced';
 
 const DEFAULT_SCRIPT_URL =
-  'https://script.google.com/macros/s/AKfycbzKwsXbJIGJnMlJqBPnDWiGjVcsmullClyDdusb-516jfG4QyqPYGF3XGwf_Zfy18yK8w/exec';
+  'https://script.google.com/macros/s/AKfycbwkp9UwXAYvZmzWehu1FkWrTRxB5CeXSv_8DrLbhS_9MUvMGFSq2hNNl4Le1-J-jQ2s6Q/exec';
 
-const POLL_MS  = 10_000; // 10 s between polls
-const PUSH_MS  = 2_000;  // 2 s debounce before push
+const POLL_MS  = 10_000;
+const PUSH_MS  = 2_000;
 
-const getUrl = () => localStorage.getItem(LS_SCRIPT_URL) || DEFAULT_SCRIPT_URL;
+// الاعتماد حصرياً على الرابط المدمج لتلافي تخزين الروابط القديمة على الموبايل
+const getUrl = () => DEFAULT_SCRIPT_URL;
 
 export type DriveStatus = 'disconnected' | 'syncing' | 'connected' | 'error';
 
-// ── fingerprint: sorted "id:ts" pairs ────────────────────────────────────────
+// ── fingerprint (لمعرفة التغييرات) ──────────────────────────────────────────
 function fp(items: Content[]): string {
   if (!items.length) return '';
   return items
@@ -23,7 +23,7 @@ function fp(items: Content[]): string {
     .join('|');
 }
 
-// ── merge: union of local+remote, newer updatedAt wins per ID ────────────────
+// ── دمج ذكي (البيانات الأحدث تفوز) ──────────────────────────────────────────
 function smartMerge(local: Content[], remote: Content[]): Content[] {
   if (!remote.length) return local;
   if (!local.length)  return remote;
@@ -43,13 +43,19 @@ async function fetchRemote(url: string): Promise<Content[]> {
   const res = await fetch(`${url}?t=${Date.now()}`, {
     method: 'GET',
     cache:  'no-store',
-    redirect: 'follow',
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const text = await res.text();
+  
+  // إذا طلب تسجيل الدخول، يعني الصلاحيات ليست "الجميع"
+  if (text.includes('<html') || text.includes('Sign in') || text.includes('تسجيل الدخول')) {
+    throw new Error('AUTH_REQUIRED');
+  }
+
   let data: unknown;
   try { data = JSON.parse(text); } catch { return []; }
   if (!Array.isArray(data)) return [];
+  
   return (data as any[]).map(item => ({
     ...item,
     createdAt: new Date(item.createdAt),
@@ -57,13 +63,25 @@ async function fetchRemote(url: string): Promise<Content[]> {
   }));
 }
 
-// ── POST (fire-and-forget, no-cors = works on every browser/mobile) ───────────
-function pushRemote(url: string, contents: Content[]): void {
-  fetch(url, {
-    method: 'POST',
-    mode:   'no-cors',
-    body:   JSON.stringify(contents),
-  }).catch(() => {});
+// ── POST ──────────────────────────────────────────────────────────────────────
+async function pushRemote(url: string, contents: Content[]): Promise<void> {
+  // استخدام fetch بسيط بدون تحديد Content-Type صريح كـ application/json لتجنب CORS Preflight.
+  // الديفولت في fetch مع string body هو text/plain.
+  try {
+    await fetch(url, {
+      method: 'POST',
+      body: JSON.stringify(contents),
+      // follow redirect لأن سيرفرات جوجل ترد بـ 302
+      redirect: 'follow',
+    });
+  } catch {
+    // إذا فشل (بسبب حماية المتصفح)، نجرب وضع no-cors كخيار أخير
+    await fetch(url, {
+      method: 'POST',
+      mode: 'no-cors',
+      body: JSON.stringify(contents),
+    });
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -74,18 +92,15 @@ export function useGoogleDrive(onLoad: (contents: Content[]) => void) {
     return s ? new Date(s) : null;
   });
   const [error,     setError]     = useState<string | null>(null);
-  const [scriptUrl, setScriptUrl] = useState(() => getUrl());
 
   const pushTimer  = useRef<ReturnType<typeof setTimeout>  | null>(null);
   const pollTimer  = useRef<ReturnType<typeof setInterval> | null>(null);
-  const retryTimer = useRef<ReturnType<typeof setTimeout>  | null>(null);
   const pending    = useRef<Content[] | null>(null);
-  const localRef   = useRef<Content[]>([]);   // mirror of current contents
-  const remoteFpRef = useRef('');              // fp of last known Drive state
+  const localRef   = useRef<Content[]>([]);
+  const remoteFpRef = useRef('');
   const onLoadRef  = useRef(onLoad);
   onLoadRef.current = onLoad;
 
-  // ── helpers ─────────────────────────────────────────────────────────────────
   const markSynced = useCallback(() => {
     const now = new Date();
     setLastSynced(now);
@@ -93,84 +108,77 @@ export function useGoogleDrive(onLoad: (contents: Content[]) => void) {
   }, []);
 
   const stopPolling = useCallback(() => {
-    if (pollTimer.current)  { clearInterval(pollTimer.current);  pollTimer.current  = null; }
-    if (retryTimer.current) { clearTimeout(retryTimer.current);  retryTimer.current = null; }
+    if (pollTimer.current) { clearInterval(pollTimer.current); pollTimer.current = null; }
   }, []);
 
-  // ── pull ─────────────────────────────────────────────────────────────────────
   const pull = useCallback(async () => {
     const url = getUrl();
     try {
       const remote = await fetchRemote(url);
       const rfp = fp(remote);
-      // Always apply if Drive fingerprint changed
       if (rfp !== remoteFpRef.current) {
         remoteFpRef.current = rfp;
         const merged = smartMerge(localRef.current, remote);
         onLoadRef.current(merged);
         markSynced();
-        // If merged has more items than remote (local had items not in Drive), push back
-        if (merged.length > remote.length) {
+        if (merged.length > remote.length || fp(merged) !== rfp) {
           pushRemote(url, merged);
         }
       }
       setError(null);
       setStatus('connected');
-    } catch {
-      // silent — poll will retry
+    } catch (e: any) {
+      if (e.message === 'AUTH_REQUIRED') {
+        setStatus('error');
+        setError('تعذر المزامنة: يرجى نشر Apps Script بصلاحية "الجميع" (Anyone) ليعمل على المحمول.');
+      }
     }
   }, [markSynced]);
 
-  // ── start polling ─────────────────────────────────────────────────────────────
   const startPolling = useCallback(() => {
     if (pollTimer.current) clearInterval(pollTimer.current);
     pollTimer.current = setInterval(pull, POLL_MS);
   }, [pull]);
 
-  // ── connect ───────────────────────────────────────────────────────────────────
-  const connect = useCallback(async (url: string) => {
-    const trimmed = url.trim();
+  const connect = useCallback(async () => {
+    const trimmed = getUrl().trim();
     if (!trimmed) return;
-    localStorage.setItem(LS_SCRIPT_URL, trimmed);
-    setScriptUrl(trimmed);
     setStatus('syncing');
     setError(null);
     stopPolling();
-    startPolling(); // start polling immediately so retries happen even if initial fails
+    startPolling();
 
     try {
       const remote = await fetchRemote(trimmed);
       remoteFpRef.current = fp(remote);
       const merged = smartMerge(localRef.current, remote);
       onLoadRef.current(merged);
-      // If local had items not in Drive, push them
-      if (merged.length > remote.length) {
+      if (merged.length > remote.length || fp(merged) !== fp(remote)) {
         pushRemote(trimmed, merged);
       }
       markSynced();
       setStatus('connected');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Drive connect error:', err);
       setStatus('error');
-      setError('تعذر الاتصال بالسيرفر، سيتم إعادة المحاولة تلقائياً كل 10 ثواني');
-      // polling already running — it will self-heal on next tick
+      if (err.message === 'AUTH_REQUIRED') {
+        setError('تأكد من نشر السكربت واختيار "Who has access: Anyone" ليعمل بدون تسجيل دخول.');
+      } else {
+        setError('لا يوجد اتصال. تأكد من الإنترنت أو سيتم إعادة المحاولة تلقائياً.');
+      }
     }
   }, [startPolling, stopPolling, markSynced]);
 
-  // ── disconnect ────────────────────────────────────────────────────────────────
   const disconnect = useCallback(() => {
     if (pushTimer.current) clearTimeout(pushTimer.current);
     stopPolling();
-    localStorage.removeItem(LS_SCRIPT_URL);
     localStorage.removeItem(LS_LAST_SYNCED);
     remoteFpRef.current = '';
-    setScriptUrl('');
     setStatus('disconnected');
     setLastSynced(null);
     setError(null);
   }, [stopPolling]);
 
-  // ── push (debounced) ──────────────────────────────────────────────────────────
   const scheduleSyncToDrive = useCallback((contents: Content[]) => {
     localRef.current = contents;
     pending.current  = contents;
@@ -181,34 +189,30 @@ export function useGoogleDrive(onLoad: (contents: Content[]) => void) {
       if (!url) return;
       setStatus('syncing');
       pushRemote(url, pending.current);
-      // Optimistic: mark synced immediately (no-cors = fire-and-forget)
-      remoteFpRef.current = fp(pending.current); // prevent pull from overwriting what we just pushed
+      remoteFpRef.current = fp(pending.current);
       markSynced();
       setStatus('connected');
     }, PUSH_MS);
   }, [markSynced]);
 
-  // ── manual pull ───────────────────────────────────────────────────────────────
   const pullNow = useCallback(async () => {
     setStatus('syncing');
-    remoteFpRef.current = ''; // force apply even if same fp
+    remoteFpRef.current = ''; // force pull
     await pull();
   }, [pull]);
 
-  // ── mount ─────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    connect(getUrl());
+    connect();
     return () => {
-      if (pushTimer.current)  clearTimeout(pushTimer.current);
+      if (pushTimer.current) clearTimeout(pushTimer.current);
       stopPolling();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── visibility: pull when tab/app becomes active ──────────────────────────────
   useEffect(() => {
     const handler = () => {
       if (document.visibilityState === 'visible') {
-        remoteFpRef.current = ''; // force re-check
+        remoteFpRef.current = '';
         pull();
       }
     };
@@ -216,5 +220,5 @@ export function useGoogleDrive(onLoad: (contents: Content[]) => void) {
     return () => document.removeEventListener('visibilitychange', handler);
   }, [pull]);
 
-  return { status, lastSynced, error, scriptUrl, connect, disconnect, scheduleSyncToDrive, pullNow };
+  return { status, lastSynced, error, connect, disconnect, scheduleSyncToDrive, pullNow };
 }

@@ -18,13 +18,12 @@ interface HeaderProps {
   contentCount: number;
   driveStatus: DriveStatus;
   driveLastSynced: Date | null;
-  driveScriptUrl: string;
-  onDriveConnect: (url: string) => void;
+  onDriveConnect: () => void;
   onDriveDisconnect: () => void;
   onDrivePullNow: () => void;
 }
 
-export function Header({ onNewContent, onExportAll, onImport, contentCount, driveStatus, driveLastSynced, driveScriptUrl, onDriveConnect, onDriveDisconnect, onDrivePullNow }: HeaderProps) {
+export function Header({ onNewContent, onExportAll, onImport, contentCount, driveStatus, driveLastSynced, onDriveConnect, onDriveDisconnect, onDrivePullNow }: HeaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [driveDialogOpen, setDriveDialogOpen] = useState(false);
 
@@ -156,7 +155,6 @@ export function Header({ onNewContent, onExportAll, onImport, contentCount, driv
             <DriveSetupDialog
               open={driveDialogOpen}
               onOpenChange={setDriveDialogOpen}
-              currentUrl={driveScriptUrl}
               onConnect={onDriveConnect}
             />
             <Button

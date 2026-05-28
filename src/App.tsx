@@ -34,7 +34,6 @@ function App() {
     status: driveStatus,
     lastSynced: driveLastSynced,
     error: driveError,
-    scriptUrl: driveScriptUrl,
     connect: driveConnect,
     disconnect: driveDisconnect,
     scheduleSyncToDrive,
@@ -221,7 +220,6 @@ function App() {
         contentCount={contents.length}
         driveStatus={driveStatus}
         driveLastSynced={driveLastSynced}
-        driveScriptUrl={driveScriptUrl}
         onDriveConnect={driveConnect}
         onDriveDisconnect={driveDisconnect}
         onDrivePullNow={drivePullNow}

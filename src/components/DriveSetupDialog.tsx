@@ -8,8 +8,6 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 
 // ─── Apps Script code the user must paste ────────────────────────────────────
 const APPS_SCRIPT_CODE = `function doPost(e) {
@@ -55,12 +53,10 @@ function doGet() {
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  currentUrl: string;
-  onConnect: (url: string) => void;
+  onConnect: () => void;
 }
 
-export function DriveSetupDialog({ open, onOpenChange, currentUrl, onConnect }: Props) {
-  const [url, setUrl]       = useState(currentUrl);
+export function DriveSetupDialog({ open, onOpenChange, onConnect }: Props) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -70,8 +66,7 @@ export function DriveSetupDialog({ open, onOpenChange, currentUrl, onConnect }: 
   };
 
   const handleConnect = () => {
-    if (!url.trim()) return;
-    onConnect(url.trim());
+    onConnect();
     onOpenChange(false);
   };
 
@@ -136,37 +131,19 @@ export function DriveSetupDialog({ open, onOpenChange, currentUrl, onConnect }: 
               <li>• من القائمة: <strong>نشر ← نشر جديد</strong></li>
               <li>• النوع: <strong>تطبيق ويب</strong></li>
               <li>• تنفيذ بوصفك: <strong>أنا</strong></li>
-              <li>• من يملك الوصول: <strong>الجميع</strong></li>
-              <li>• اضغط <strong>نشر</strong> واقبل الأذونات</li>
+              <li>• من يملك الوصول: <strong>الجميع (Anyone)</strong></li>
             </ul>
           </div>
 
-          {/* Step 4 */}
-          <div className="space-y-2">
-            <p className="font-semibold text-sm flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center shrink-0">٤</span>
-              الصق رابط النشر هنا
-            </p>
-            <div className="mr-8 space-y-2">
-              <Label htmlFor="script-url" className="text-sm text-muted-foreground">
-                رابط تطبيق الويب (يبدأ بـ https://script.google.com/macros/s/...)
-              </Label>
-              <Input
-                id="script-url"
-                dir="ltr"
-                placeholder="https://script.google.com/macros/s/.../exec"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                className="font-mono text-xs"
-              />
-            </div>
+          <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-lg mr-8 mb-2">
+            <strong>ملاحظة:</strong> يجب اختيار "الجميع" ليعمل على جميع الأجهزة مباشرة.
           </div>
 
           {/* Connect button */}
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>إلغاء</Button>
-            <Button onClick={handleConnect} disabled={!url.trim()}>
-              اتصال
+            <Button onClick={handleConnect}>
+              اتصال ومزامنة 
             </Button>
           </div>
         </div>
