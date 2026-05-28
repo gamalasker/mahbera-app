@@ -4,6 +4,12 @@ import type { Content } from '@/types';
 const LS_SCRIPT_URL  = 'mahbera_drive_script_url';
 const LS_LAST_SYNCED = 'mahbera_drive_last_synced';
 
+// الرابط الافتراضي — يعمل تلقائياً على كل الأجهزة دون إعداد
+const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzKwsXbJIGJnMlJqBPnDWiGjVcsmullClyDdusb-516jfG4QyqPYGF3XGwf_Zfy18yK8w/exec';
+
+const getScriptUrl = () =>
+  localStorage.getItem(LS_SCRIPT_URL) || DEFAULT_SCRIPT_URL;
+
 export type DriveStatus = 'disconnected' | 'syncing' | 'connected' | 'error';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -43,16 +49,14 @@ async function postToScript(url: string, contents: Content[]): Promise<void> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function useGoogleDrive(onContentsLoaded: (contents: Content[]) => void) {
-  const [status, setStatus] = useState<DriveStatus>(() =>
-    localStorage.getItem(LS_SCRIPT_URL) ? 'syncing' : 'disconnected',
-  );
+  const [status, setStatus] = useState<DriveStatus>('syncing');
   const [lastSynced, setLastSynced] = useState<Date | null>(() => {
     const s = localStorage.getItem(LS_LAST_SYNCED);
     return s ? new Date(s) : null;
   });
   const [error, setError]         = useState<string | null>(null);
   const [scriptUrl, setScriptUrl] = useState(
-    () => localStorage.getItem(LS_SCRIPT_URL) ?? '',
+    () => localStorage.getItem(LS_SCRIPT_URL) ?? DEFAULT_SCRIPT_URL,
   );
 
   const syncTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -96,15 +100,12 @@ export function useGoogleDrive(onContentsLoaded: (contents: Content[]) => void) 
 
   // ── Debounced auto-sync (3 s after last change) ───────────────────────────
   const scheduleSyncToDrive = useCallback((contents: Content[]) => {
-    const url = localStorage.getItem(LS_SCRIPT_URL);
-    if (!url) return;
-
     pendingRef.current = contents;
     if (syncTimer.current) clearTimeout(syncTimer.current);
 
     syncTimer.current = setTimeout(async () => {
       if (!pendingRef.current) return;
-      const currentUrl = localStorage.getItem(LS_SCRIPT_URL);
+      const currentUrl = getScriptUrl();
       if (!currentUrl) return;
 
       try {
@@ -123,10 +124,9 @@ export function useGoogleDrive(onContentsLoaded: (contents: Content[]) => void) 
     }, 3000);
   }, []);
 
-  // ── Auto-restore saved URL on mount ──────────────────────────────────────
+  // ── Auto-connect on mount (uses saved URL or default) ───────────────────
   useEffect(() => {
-    const savedUrl = localStorage.getItem(LS_SCRIPT_URL);
-    if (savedUrl) connect(savedUrl);
+    connect(getScriptUrl());
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { status, lastSynced, error, scriptUrl, connect, disconnect, scheduleSyncToDrive };
