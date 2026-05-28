@@ -40,6 +40,8 @@ function App() {
     pullNow: drivePullNow,
   } = useGoogleDrive(replaceContents);
 
+  const activeContents = contents.filter(c => !c.isDeleted);
+
   // Auto-sync to Drive whenever contents change (after initial load)
   useEffect(() => {
     if (isLoaded) {
@@ -109,7 +111,7 @@ function App() {
   };
 
   const handleExportAll = async (format: 'txt' | 'rtf' | 'rtf-separate' = 'txt') => {
-    if (contents.length === 0) {
+    if (activeContents.length === 0) {
       toast.error('لا يوجد محتوى للتصدير');
       return;
     }
@@ -125,10 +127,10 @@ function App() {
       }
     } else if (format === 'rtf') {
       exportAllToRtf();
-      toast.success(`تم تصدير ${contents.length} محتوى بنجاح`);
+      toast.success(`تم تصدير ${activeContents.length} محتوى بنجاح`);
     } else {
       exportAllToText();
-      toast.success(`تم تصدير ${contents.length} محتوى بنجاح`);
+      toast.success(`تم تصدير ${activeContents.length} محتوى بنجاح`);
     }
   };
 
@@ -200,7 +202,7 @@ function App() {
       default:
         return (
           <ContentList
-            contents={contents}
+            contents={activeContents}
             onView={handleViewContent}
             onEdit={handleEditContent}
             onDelete={handleDeleteContent}
@@ -217,7 +219,7 @@ function App() {
         onNewContent={handleNewContent}
         onExportAll={handleExportAll}
         onImport={handleImport}
-        contentCount={contents.length}
+        contentCount={activeContents.length}
         driveStatus={driveStatus}
         driveLastSynced={driveLastSynced}
         onDriveConnect={driveConnect}

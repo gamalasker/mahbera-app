@@ -7,6 +7,7 @@ export interface Content {
   updatedAt: Date;
   tags: string[];
   isPublished: boolean;
+  isDeleted?: boolean;
 }
 
 export interface ContentFormData {

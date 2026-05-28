@@ -73,7 +73,9 @@ export function useLocalStorage() {
   }, []);
 
   const deleteContent = useCallback((id: string) => {
-    setContents(prev => prev.filter(item => item.id !== id));
+    setContents(prev => prev.map(item =>
+      item.id === id ? { ...item, isDeleted: true, updatedAt: new Date() } : item
+    ));
   }, []);
 
   const togglePublish = useCallback((id: string) => {
@@ -158,8 +160,8 @@ ${'-'.repeat(50)}
   }, []);
 
   const exportAllToText = useCallback(async () => {
-    // Sort contents from oldest to newest
-    const sortedContents = [...contents].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    // Sort contents from oldest to newest (only non-deleted)
+    const sortedContents = contents.filter(c => !c.isDeleted).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
     const allText = sortedContents.map(content => {
       const plainContent = stripHtml(content.content);
       return `
@@ -388,8 +390,8 @@ ${body}
       }
     };
 
-    // Sort contents from oldest to newest
-    const sortedContents = [...contents].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    // Sort contents from oldest to newest (only non-deleted)
+    const sortedContents = contents.filter(c => !c.isDeleted).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
     const allContent = sortedContents.map(content => {
       const title = textToRtf(content.title);
       const typeLabel = textToRtf(getTypeLabel(content.type));
@@ -477,8 +479,8 @@ ${allContent}
       let successCount = 0;
       const usedFileNames = new Set<string>();
 
-      // Sort contents from oldest to newest
-      const sortedContents = [...contents].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      // Sort contents from oldest to newest (excluding deleted)
+      const sortedContents = contents.filter(c => !c.isDeleted).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
       for (const content of sortedContents) {
         // Prepare RTF content for this item
         const title = textToRtf(content.title);
