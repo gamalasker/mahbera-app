@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   BookOpen,
   FileText,
@@ -10,7 +11,9 @@ import {
   Lock,
   ChevronLeft,
   Book,
-  ChevronDown
+  ChevronDown,
+  Copy,
+  Check
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -22,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { Content } from '@/types';
+import { copyContentToClipboard } from '@/lib/utils';
 
 interface ContentViewerProps {
   content: Content;
@@ -31,6 +35,16 @@ interface ContentViewerProps {
 }
 
 export function ContentViewer({ content, onClose, onEdit, onExport }: ContentViewerProps) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    const success = await copyContentToClipboard(content.content);
+    if (success) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   const getTypeIcon = (type: Content['type']) => {
     switch (type) {
       case 'story':
@@ -100,6 +114,23 @@ export function ContentViewer({ content, onClose, onEdit, onExport }: ContentVie
             </DropdownMenuContent>
           </DropdownMenu>
           <Button
+            variant="outline"
+            onClick={handleCopy}
+            className="flex items-center gap-2 min-w-[90px] transition-all"
+          >
+            {copied ? (
+              <>
+                <Check className="w-4 h-4 text-green-600" />
+                <span className="text-green-600">تم النسخ</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-4 h-4" />
+                <span>نسخ</span>
+              </>
+            )}
+          </Button>
+          <Button
             onClick={() => onEdit(content)}
             className="flex items-center gap-2"
           >
@@ -162,7 +193,28 @@ export function ContentViewer({ content, onClose, onEdit, onExport }: ContentVie
         </div>
 
         {/* Content */}
-        <div className="p-6 sm:p-8">
+        <div className="p-6 sm:p-8 relative group">
+          <div className="absolute top-4 left-4 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200 z-10">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCopy}
+              className="flex items-center gap-1.5 shadow-sm bg-background/80 backdrop-blur-sm border border-border"
+              title="نسخ المحتوى"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-green-600 animate-scale-in" />
+                  <span className="text-xs text-green-600 font-medium">تم النسخ</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground font-medium">نسخ النص</span>
+                </>
+              )}
+            </Button>
+          </div>
           <div
             className="rich-content prose prose-lg max-w-none"
             style={{
@@ -176,3 +228,4 @@ export function ContentViewer({ content, onClose, onEdit, onExport }: ContentVie
     </div>
   );
 }
+

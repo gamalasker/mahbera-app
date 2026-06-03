@@ -13,7 +13,9 @@ import {
   Lock,
   Search,
   Filter,
-  Book
+  Book,
+  Copy,
+  Check
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -26,6 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { Content } from '@/types';
+import { copyContentToClipboard } from '@/lib/utils';
 
 interface ContentListProps {
   contents: Content[];
@@ -48,6 +51,7 @@ export function ContentList({
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [publishFilter, setPublishFilter] = useState<'all' | 'published' | 'draft'>('all');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title'>('newest');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const getTypeIcon = (type: Content['type']) => {
     switch (type) {
@@ -67,6 +71,14 @@ export function ContentList({
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = html;
     return (tempDiv.textContent || tempDiv.innerText || '').trim();
+  };
+
+  const handleCopy = async (content: Content) => {
+    const success = await copyContentToClipboard(content.content);
+    if (success) {
+      setCopiedId(content.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    }
   };
 
   const getTypeLabel = (type: Content['type']) => {
@@ -248,6 +260,18 @@ export function ContentList({
                     <Button
                       variant="ghost"
                       size="icon"
+                      onClick={() => handleCopy(content)}
+                      title="نسخ"
+                    >
+                      {copiedId === content.id ? (
+                        <Check className="w-4 h-4 text-green-600 animate-scale-in" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => onEdit(content)}
                       title="تعديل"
                     >
@@ -280,3 +304,4 @@ export function ContentList({
     </div>
   );
 }
+
