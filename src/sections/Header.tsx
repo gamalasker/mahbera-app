@@ -11,6 +11,7 @@ import { useRef, useState } from 'react';
 import type { DriveStatus } from '@/hooks/useGoogleDrive';
 import { DriveSetupDialog } from '@/components/DriveSetupDialog';
 import { ModeToggle } from '@/components/mode-toggle';
+import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-react";
 
 interface HeaderProps {
   onNewContent: () => void;
@@ -196,6 +197,25 @@ export function Header({ onNewContent, onExportAll, onImport, contentCount, driv
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+
+            {/* User Access Controls */}
+            <SignedOut>
+              <SignInButton mode="modal">
+                <Button variant="default" size="sm" className="items-center gap-2">
+                  تسجيل الدخول
+                </Button>
+              </SignInButton>
+            </SignedOut>
+            <SignedIn>
+              <UserButton
+                  appearance={{
+                      elements: {
+                          avatarBox: "w-8 h-8",
+                      },
+                  }}    
+              />
+            </SignedIn>
+
             <Button
               onClick={onNewContent}
               className="flex items-center gap-2"

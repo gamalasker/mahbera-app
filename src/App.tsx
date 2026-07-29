@@ -7,6 +7,7 @@ import { ContentViewer } from '@/sections/ContentViewer';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useGoogleDrive } from '@/hooks/useGoogleDrive';
 import type { Content, ContentFormData, ViewMode } from '@/types';
+import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/clerk-react";
 import './App.css';
 
 function App() {
@@ -214,32 +215,62 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header
-        onNewContent={handleNewContent}
-        onExportAll={handleExportAll}
-        onImport={handleImport}
-        contentCount={activeContents.length}
-        driveStatus={driveStatus}
-        driveLastSynced={driveLastSynced}
-        onDriveConnect={driveConnect}
-        onDriveDisconnect={driveDisconnect}
-        onDrivePullNow={drivePullNow}
-      />
+    <>
+      <SignedOut>
+        <div className="flex flex-col items-center justify-center min-h-screen bg-background">
+          <div className="text-center space-y-6 max-w-md w-full px-4">
+              <div className="w-20 h-20 mx-auto rounded-3xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
+                <span className="text-4xl">🖋️</span>
+              </div>
+              <h1 className="text-4xl font-bold tracking-tight text-primary">مَحبرة</h1>
+              <p className="text-muted-foreground text-lg">منصة المبدعين الأدبية. قم بتسجيل الدخول للبدء بالكتابة وحفظ أعمالك.</p>
+              
+              <div className="pt-4">
+                 <Header 
+                  onNewContent={handleNewContent}
+                  onExportAll={handleExportAll}
+                  onImport={handleImport}
+                  contentCount={0}
+                  driveStatus={'disconnected'}
+                  driveLastSynced={null}
+                  onDriveConnect={() => {}}
+                  onDriveDisconnect={() => {}}
+                  onDrivePullNow={() => {}}
+                 />
+              </div>
+          </div>
+        </div>
+      </SignedOut>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {renderContent()}
-      </main>
+      <SignedIn>
+        <div className="min-h-screen bg-background">
+          <Header
+            onNewContent={handleNewContent}
+            onExportAll={handleExportAll}
+            onImport={handleImport}
+            contentCount={activeContents.length}
+            driveStatus={driveStatus}
+            driveLastSynced={driveLastSynced}
+            onDriveConnect={driveConnect}
+            onDriveDisconnect={driveDisconnect}
+            onDrivePullNow={drivePullNow}
+          />
 
-      <Toaster
-        position="bottom-left"
-        toastOptions={{
-          style: {
-            fontFamily: 'Noto Naskh Arabic, Amiri, serif'
-          }
-        }}
-      />
-    </div>
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {renderContent()}
+          </main>
+
+          <Toaster
+            position="bottom-left"
+            toastOptions={{
+              style: {
+                fontFamily: 'Noto Naskh Arabic, Amiri, serif'
+              }
+            }}
+          />
+        </div>
+      </SignedIn>
+    </>
   );
 }
 
