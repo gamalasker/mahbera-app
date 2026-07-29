@@ -1,15 +1,12 @@
-import { Pen, BookOpen, FileText, Feather, Upload, ChevronDown, CloudIcon, CloudOff, Loader2, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Pen, BookOpen, FileText, Feather, Upload, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useRef, useState } from 'react';
-import type { DriveStatus } from '@/hooks/useGoogleDrive';
-import { DriveSetupDialog } from '@/components/DriveSetupDialog';
+import { useRef } from 'react';
 import { ModeToggle } from '@/components/mode-toggle';
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-react";
 
@@ -18,16 +15,10 @@ interface HeaderProps {
   onExportAll: (format: 'txt' | 'rtf' | 'rtf-separate') => void;
   onImport: (file: File) => void;
   contentCount: number;
-  driveStatus: DriveStatus;
-  driveLastSynced: Date | null;
-  onDriveConnect: () => void;
-  onDriveDisconnect: () => void;
-  onDrivePullNow: () => void;
 }
 
-export function Header({ onNewContent, onExportAll, onImport, contentCount, driveStatus, driveLastSynced, onDriveConnect, onDriveDisconnect, onDrivePullNow }: HeaderProps) {
+export function Header({ onNewContent, onExportAll, onImport, contentCount }: HeaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [driveDialogOpen, setDriveDialogOpen] = useState(false);
 
   const handleImportClick = () => {
     fileInputRef.current?.click();
@@ -40,27 +31,6 @@ export function Header({ onNewContent, onExportAll, onImport, contentCount, driv
       // Reset input to allow importing the same file again
       e.target.value = '';
     }
-  };
-
-  // ── Drive status helpers ──────────────────────────────────────────────────
-  const driveIcon = () => {
-    if (driveStatus === 'syncing')
-      return <Loader2 className="w-4 h-4 animate-spin" />;
-    if (driveStatus === 'connected')
-      return <CheckCircle2 className="w-4 h-4 text-green-500" />;
-    if (driveStatus === 'error')
-      return <AlertCircle className="w-4 h-4 text-destructive" />;
-    return <CloudOff className="w-4 h-4" />;
-  };
-
-  const driveLabel = () => {
-    if (driveStatus === 'syncing') return 'جاري المزامنة...';
-    if (driveStatus === 'connected')
-      return driveLastSynced
-        ? `آخر مزامنة ${driveLastSynced.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}`
-        : 'متصل بجوجل درايف';
-    if (driveStatus === 'error') return 'خطأ في المزامنة';
-    return 'ربط بجوجل درايف';
   };
 
   return (
@@ -100,66 +70,6 @@ export function Header({ onNewContent, onExportAll, onImport, contentCount, driv
               className="hidden"
             />
 
-            {/* Google Drive button */}
-            {driveStatus === 'disconnected' ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setDriveDialogOpen(true)}
-                className="hidden sm:flex items-center gap-2"
-              >
-                <CloudIcon className="w-4 h-4" />
-                ربط بجوجل درايف
-              </Button>
-            ) : (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="hidden sm:flex items-center gap-2"
-                  >
-                    {driveIcon()}
-                    <span className="max-w-[160px] truncate">{driveLabel()}</span>
-                    <ChevronDown className="w-3 h-3" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                    {driveStatus === 'error' ? 'خطأ في الاتصال' : 'جوجل درايف مرتبط'}
-                  </div>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={onDrivePullNow}
-                    disabled={driveStatus === 'syncing'}
-                  >
-                    <RefreshCw className="w-4 h-4 ml-2" />
-                    سحب التغييرات الآن
-                  </DropdownMenuItem>
-                  {driveStatus === 'error' && (
-                    <DropdownMenuItem onClick={() => setDriveDialogOpen(true)}>
-                      <CloudIcon className="w-4 h-4 ml-2" />
-                      إعادة الإعداد
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={onDriveDisconnect}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <CloudOff className="w-4 h-4 ml-2" />
-                    قطع الاتصال
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-
-            {/* Drive setup dialog */}
-            <DriveSetupDialog
-              open={driveDialogOpen}
-              onOpenChange={setDriveDialogOpen}
-              onConnect={onDriveConnect}
-            />
             <Button
               variant="outline"
               size="sm"
