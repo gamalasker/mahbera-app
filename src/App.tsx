@@ -7,7 +7,7 @@ import { ContentViewer } from '@/sections/ContentViewer';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useGoogleDrive } from '@/hooks/useGoogleDrive';
 import type { Content, ContentFormData, ViewMode } from '@/types';
-import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/clerk-react";
+import { SignedIn, SignedOut } from "@clerk/clerk-react";
 import './App.css';
 
 function App() {
