@@ -5,7 +5,8 @@ import {
   BookOpen,
   FileText,
   Feather,
-  Tag
+  Tag,
+  Folder as FolderIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,20 +20,24 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
-import type { Content, ContentFormData } from '@/types';
+import type { Content, ContentFormData, Folder } from '@/types';
 
 interface ContentEditorProps {
   content?: Content | null;
+  folders: Folder[];
   onSave: (data: ContentFormData) => void;
   onCancel: () => void;
 }
 
-export function ContentEditor({ content, onSave, onCancel }: ContentEditorProps) {
+const NO_FOLDER = '__none__';
+
+export function ContentEditor({ content, folders, onSave, onCancel }: ContentEditorProps) {
   const [formData, setFormData] = useState<ContentFormData>({
     title: '',
     content: '',
     type: 'story',
-    tags: ''
+    tags: '',
+    folderId: null
   });
 
   const [isSaving, setIsSaving] = useState(false);
@@ -43,14 +48,16 @@ export function ContentEditor({ content, onSave, onCancel }: ContentEditorProps)
         title: content.title,
         content: content.content,
         type: content.type,
-        tags: content.tags.join(', ')
+        tags: content.tags.join(', '),
+        folderId: content.folderId ?? null
       });
     } else {
       setFormData({
         title: '',
         content: '',
         type: 'story',
-        tags: ''
+        tags: '',
+        folderId: null
       });
     }
   }, [content]);
@@ -182,6 +189,30 @@ export function ContentEditor({ content, onSave, onCancel }: ContentEditorProps)
               onChange={(e) => setFormData(prev => ({ ...prev, tags: e.target.value }))}
               placeholder="أدخل الوسوم مفصولة بفواصل: وسم1, وسم2, وسم3"
             />
+          </div>
+
+          {/* Folder */}
+          <div className="space-y-2 mt-6">
+            <Label htmlFor="folder" className="flex items-center gap-2">
+              <FolderIcon className="w-4 h-4" />
+              المجلد
+            </Label>
+            <Select
+              value={formData.folderId ?? NO_FOLDER}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, folderId: value === NO_FOLDER ? null : value }))}
+            >
+              <SelectTrigger id="folder">
+                <SelectValue placeholder="اختر مجلداً" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_FOLDER}>بدون مجلد</SelectItem>
+                {folders.map(folder => (
+                  <SelectItem key={folder.id} value={folder.id}>
+                    {folder.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </Card>
 

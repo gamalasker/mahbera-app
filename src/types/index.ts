@@ -8,6 +8,7 @@ export interface Content {
   tags: string[];
   isPublished: boolean;
   isDeleted?: boolean;
+  folderId?: string | null;
 }
 
 export interface ContentFormData {
@@ -15,6 +16,14 @@ export interface ContentFormData {
   content: string;
   type: 'story' | 'article' | 'poem' | 'novel';
   tags: string;
+  folderId?: string | null;
+}
+
+export interface Folder {
+  id: string;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export type ViewMode = 'list' | 'grid' | 'editor' | 'view';

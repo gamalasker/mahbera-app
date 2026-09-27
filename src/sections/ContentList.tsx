@@ -15,7 +15,10 @@ import {
   Filter,
   Book,
   Copy,
-  Check
+  Check,
+  FolderInput,
+  Inbox,
+  Folder as FolderIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -27,31 +30,49 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { Content } from '@/types';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { FolderSidebar, UNFILED_FOLDER_ID } from '@/sections/FolderSidebar';
+import type { Content, Folder } from '@/types';
 import { copyContentToClipboard } from '@/lib/utils';
 
 interface ContentListProps {
   contents: Content[];
+  folders: Folder[];
   onView: (content: Content) => void;
   onEdit: (content: Content) => void;
   onDelete: (id: string) => void;
   onExport: (content: Content) => void;
   onTogglePublish: (id: string) => void;
+  onCreateFolder: (name: string) => void;
+  onRenameFolder: (id: string, name: string) => void;
+  onDeleteFolder: (id: string) => void;
+  onMoveContent: (id: string, folderId: string | null) => void;
 }
 
 export function ContentList({
   contents,
+  folders,
   onView,
   onEdit,
   onDelete,
   onExport,
-  onTogglePublish
+  onTogglePublish,
+  onCreateFolder,
+  onRenameFolder,
+  onDeleteFolder,
+  onMoveContent
 }: ContentListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [publishFilter, setPublishFilter] = useState<'all' | 'published' | 'draft'>('all');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title'>('newest');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
 
   const getTypeIcon = (type: Content['type']) => {
     switch (type) {
@@ -106,7 +127,10 @@ export function ContentList({
         (publishFilter === 'published' && content.isPublished) ||
         (publishFilter === 'draft' && !content.isPublished);
 
-      return matchesSearch && matchesType && matchesPublish;
+      const matchesFolder = selectedFolderId === null ||
+        (selectedFolderId === UNFILED_FOLDER_ID ? !content.folderId : content.folderId === selectedFolderId);
+
+      return matchesSearch && matchesType && matchesPublish && matchesFolder;
     })
     .sort((a, b) => {
       switch (sortBy) {
@@ -121,8 +145,32 @@ export function ContentList({
       }
     });
 
+  const countByFolder = folders.reduce<Record<string, number>>((acc, folder) => {
+    acc[folder.id] = contents.filter(c => c.folderId === folder.id).length;
+    return acc;
+  }, {});
+  const countUnfiled = contents.filter(c => !c.folderId).length;
+  const countAll = contents.length;
+
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col lg:flex-row gap-6">
+      <aside className="lg:w-64 shrink-0">
+        <Card className="p-3">
+          <FolderSidebar
+            folders={folders}
+            selectedFolderId={selectedFolderId}
+            onSelectFolder={setSelectedFolderId}
+            onCreateFolder={onCreateFolder}
+            onRenameFolder={onRenameFolder}
+            onDeleteFolder={onDeleteFolder}
+            countAll={countAll}
+            countUnfiled={countUnfiled}
+            countByFolder={countByFolder}
+          />
+        </Card>
+      </aside>
+
+      <div className="flex-1 min-w-0 space-y-6">
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
@@ -219,6 +267,13 @@ export function ContentList({
                   {content.title}
                 </h3>
 
+                {content.folderId && (
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                    <FolderIcon className="w-3 h-3" />
+                    {folders.find(f => f.id === content.folderId)?.name}
+                  </div>
+                )}
+
                 <p className="text-muted-foreground text-sm line-clamp-3 mb-4">
                   {stripHtml(content.content).slice(0, 150)}...
                 </p>
@@ -285,6 +340,33 @@ export function ContentList({
                     >
                       <Download className="w-4 h-4" />
                     </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="نقل إلى مجلد"
+                        >
+                          <FolderInput className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onMoveContent(content.id, null)}>
+                          <Inbox className="w-4 h-4 ml-2" />
+                          بدون مجلد
+                        </DropdownMenuItem>
+                        {folders.map(folder => (
+                          <DropdownMenuItem
+                            key={folder.id}
+                            disabled={content.folderId === folder.id}
+                            onClick={() => onMoveContent(content.id, folder.id)}
+                          >
+                            <FolderIcon className="w-4 h-4 ml-2" />
+                            {folder.name}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -301,6 +383,7 @@ export function ContentList({
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

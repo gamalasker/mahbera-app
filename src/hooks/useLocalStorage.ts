@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Content, ContentFormData } from '@/types';
+import type { Content, ContentFormData, Folder } from '@/types';
 
 const STORAGE_KEY = 'mahbera_contents';
+const FOLDERS_KEY = 'mahbera_folders';
 
 export function useLocalStorage() {
   const [contents, setContents] = useState<Content[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Load contents from localStorage on mount
@@ -15,6 +17,15 @@ export function useLocalStorage() {
         if (saved) {
           const parsed = JSON.parse(saved);
           setContents(parsed.map((item: any) => ({
+            ...item,
+            createdAt: new Date(item.createdAt),
+            updatedAt: new Date(item.updatedAt)
+          })));
+        }
+        const savedFolders = localStorage.getItem(FOLDERS_KEY);
+        if (savedFolders) {
+          const parsed = JSON.parse(savedFolders);
+          setFolders(parsed.map((item: any) => ({
             ...item,
             createdAt: new Date(item.createdAt),
             updatedAt: new Date(item.updatedAt)
@@ -41,6 +52,17 @@ export function useLocalStorage() {
     }
   }, [contents, isLoaded]);
 
+  // Save folders to localStorage whenever they change
+  useEffect(() => {
+    if (isLoaded) {
+      try {
+        localStorage.setItem(FOLDERS_KEY, JSON.stringify(folders));
+      } catch (error) {
+        console.error('Error saving folders to localStorage:', error);
+      }
+    }
+  }, [folders, isLoaded]);
+
   const addContent = useCallback((formData: ContentFormData) => {
     const newContent: Content = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
@@ -50,7 +72,8 @@ export function useLocalStorage() {
       createdAt: new Date(),
       updatedAt: new Date(),
       tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag !== ''),
-      isPublished: false
+      isPublished: false,
+      folderId: formData.folderId ?? null
     };
 
     setContents(prev => [newContent, ...prev]);
@@ -66,9 +89,46 @@ export function useLocalStorage() {
           content: formData.content,
           type: formData.type,
           tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag !== ''),
+          folderId: formData.folderId ?? item.folderId ?? null,
           updatedAt: new Date()
         }
         : item
+    ));
+  }, []);
+
+  // ── Folders ────────────────────────────────────────────────────────────
+  const addFolder = useCallback((name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return null;
+    const newFolder: Folder = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      name: trimmed,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    setFolders(prev => [...prev, newFolder]);
+    return newFolder;
+  }, []);
+
+  const renameFolder = useCallback((id: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setFolders(prev => prev.map(f =>
+      f.id === id ? { ...f, name: trimmed, updatedAt: new Date() } : f
+    ));
+  }, []);
+
+  const deleteFolder = useCallback((id: string) => {
+    setFolders(prev => prev.filter(f => f.id !== id));
+    // Move any content inside the deleted folder back to "unfiled"
+    setContents(prev => prev.map(item =>
+      item.folderId === id ? { ...item, folderId: null, updatedAt: new Date() } : item
+    ));
+  }, []);
+
+  const moveContentToFolder = useCallback((id: string, folderId: string | null) => {
+    setContents(prev => prev.map(item =>
+      item.id === id ? { ...item, folderId, updatedAt: new Date() } : item
     ));
   }, []);
 
@@ -231,7 +291,8 @@ ${plainContent}
             createdAt: new Date(),
             updatedAt: new Date(),
             tags: ['مُستورَد'],
-            isPublished: false
+            isPublished: false,
+            folderId: null
           };
 
           setContents(prev => [newContent, ...prev]);
@@ -565,7 +626,12 @@ ${body}
     exportToRtf,
     exportAllToRtf,
     exportAllSeparately,
-    importFromFile
+    importFromFile,
+    folders,
+    addFolder,
+    renameFolder,
+    deleteFolder,
+    moveContentToFolder
   };
 }
 

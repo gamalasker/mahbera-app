@@ -28,7 +28,12 @@ function App() {
     exportToRtf,
     exportAllToRtf,
     exportAllSeparately,
-    importFromFile
+    importFromFile,
+    folders,
+    addFolder,
+    renameFolder,
+    deleteFolder,
+    moveContentToFolder
   } = useLocalStorage();
 
   const {
@@ -180,6 +185,7 @@ function App() {
         return (
           <ContentEditor
             content={selectedContent}
+            folders={folders}
             onSave={handleSaveContent}
             onCancel={handleCancelEdit}
           />
@@ -204,11 +210,16 @@ function App() {
         return (
           <ContentList
             contents={activeContents}
+            folders={folders}
             onView={handleViewContent}
             onEdit={handleEditContent}
             onDelete={handleDeleteContent}
             onExport={handleExportContent}
             onTogglePublish={handleTogglePublish}
+            onCreateFolder={addFolder}
+            onRenameFolder={renameFolder}
+            onDeleteFolder={deleteFolder}
+            onMoveContent={moveContentToFolder}
           />
         );
     }
