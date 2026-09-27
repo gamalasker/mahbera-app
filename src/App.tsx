@@ -38,12 +38,8 @@ function App() {
 
   const {
     status: driveStatus,
-    lastSynced: driveLastSynced,
     error: driveError,
-    connect: driveConnect,
-    disconnect: driveDisconnect,
     scheduleSyncToDrive,
-    pullNow: drivePullNow,
   } = useGoogleDrive(replaceContents);
 
   const activeContents = contents.filter(c => !c.isDeleted);
