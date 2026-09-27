@@ -242,11 +242,6 @@ function App() {
                   onExportAll={handleExportAll}
                   onImport={handleImport}
                   contentCount={0}
-                  driveStatus={'disconnected'}
-                  driveLastSynced={null}
-                  onDriveConnect={() => {}}
-                  onDriveDisconnect={() => {}}
-                  onDrivePullNow={() => {}}
                  />
               </div>
           </div>
@@ -260,11 +255,6 @@ function App() {
             onExportAll={handleExportAll}
             onImport={handleImport}
             contentCount={activeContents.length}
-            driveStatus={driveStatus}
-            driveLastSynced={driveLastSynced}
-            onDriveConnect={driveConnect}
-            onDriveDisconnect={driveDisconnect}
-            onDrivePullNow={drivePullNow}
           />
 
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
