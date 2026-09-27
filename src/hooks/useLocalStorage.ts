@@ -612,6 +612,11 @@ ${body}
     setContents(incoming);
   }, []);
 
+  const replaceSyncedData = useCallback((incoming: { contents: Content[]; folders: Folder[] }) => {
+    setContents(incoming.contents);
+    setFolders(incoming.folders);
+  }, []);
+
   return {
     contents,
     isLoaded,
@@ -621,6 +626,7 @@ ${body}
     togglePublish,
     getContent,
     replaceContents,
+    replaceSyncedData,
     exportToText,
     exportAllToText,
     exportToRtf,

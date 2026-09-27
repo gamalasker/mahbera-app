@@ -1,5 +1,5 @@
 ﻿import { useState, useCallback, useRef, useEffect } from 'react';
-import type { Content } from '@/types';
+import type { Content, Folder } from '@/types';
 
 const LS_LAST_SYNCED = 'mahbera_drive_last_synced';
 
@@ -14,32 +14,55 @@ const getUrl = () => DEFAULT_SCRIPT_URL;
 
 export type DriveStatus = 'disconnected' | 'syncing' | 'connected' | 'error';
 
+export interface DriveData {
+  contents: Content[];
+  folders: Folder[];
+}
+
 // ── fingerprint (لمعرفة التغييرات) ──────────────────────────────────────────
-function fp(items: Content[]): string {
-  if (!items.length) return '';
-  return items
+function fp(data: DriveData): string {
+  const contentsFingerprint = data.contents
     .map(c => `${c.id}:${new Date(c.updatedAt).getTime()}`)
     .sort()
     .join('|');
+  const foldersFingerprint = data.folders
+    .map(f => `${f.id}:${new Date(f.updatedAt).getTime()}`)
+    .sort()
+    .join('|');
+  return `${contentsFingerprint}#${foldersFingerprint}`;
 }
 
 // ── دمج ذكي (البيانات الأحدث تفوز) ──────────────────────────────────────────
-function smartMerge(local: Content[], remote: Content[]): Content[] {
+function mergeByUpdatedAt<T extends { id: string; updatedAt: Date }>(local: T[], remote: T[]): T[] {
   if (!remote.length) return local;
-  if (!local.length)  return remote;
-  const map = new Map<string, Content>();
+  if (!local.length) return remote;
+  const map = new Map<string, T>();
   for (const item of remote) map.set(item.id, item);
   for (const item of local) {
+    const existing = map.get(item.id);
+    if (!existing || new Date(item.updatedAt) > new Date(existing.updatedAt)) map.set(item.id, item);
+  }
+  return Array.from(map.values());
+}
+
+function smartMerge(local: DriveData, remote: DriveData): DriveData {
+  const map = new Map<string, Content>();
+  for (const item of remote.contents) map.set(item.id, item);
+  for (const item of local.contents) {
     const ex = map.get(item.id);
     if (!ex || new Date(item.updatedAt) > new Date(ex.updatedAt))
       map.set(item.id, item);
   }
-  return Array.from(map.values())
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return {
+    contents: Array.from(map.values())
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    folders: mergeByUpdatedAt(local.folders, remote.folders)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
+  };
 }
 
 // ── GET ───────────────────────────────────────────────────────────────────────
-async function fetchRemote(url: string): Promise<Content[]> {
+async function fetchRemote(url: string): Promise<DriveData> {
   const res = await fetch(`${url}?t=${Date.now()}`, {
     method: 'GET',
     cache:  'no-store',
@@ -53,24 +76,39 @@ async function fetchRemote(url: string): Promise<Content[]> {
   }
 
   let data: unknown;
-  try { data = JSON.parse(text); } catch { return []; }
-  if (!Array.isArray(data)) return [];
-  
-  return (data as any[]).map(item => ({
+  try { data = JSON.parse(text); } catch { return { contents: [], folders: [] }; }
+
+  const rawContents = Array.isArray(data)
+    ? data
+    : Array.isArray((data as DriveData)?.contents)
+      ? (data as DriveData).contents
+      : [];
+  const rawFolders = !Array.isArray(data) && Array.isArray((data as DriveData)?.folders)
+    ? (data as DriveData).folders
+    : [];
+
+  return {
+    contents: rawContents.map(item => ({
     ...item,
     createdAt: new Date(item.createdAt),
     updatedAt: new Date(item.updatedAt),
-  }));
+    })),
+    folders: rawFolders.map(item => ({
+      ...item,
+      createdAt: new Date(item.createdAt),
+      updatedAt: new Date(item.updatedAt),
+    })),
+  };
 }
 
 // ── POST ──────────────────────────────────────────────────────────────────────
-async function pushRemote(url: string, contents: Content[]): Promise<void> {
+async function pushRemote(url: string, data: DriveData): Promise<void> {
   // استخدام fetch بسيط بدون تحديد Content-Type صريح كـ application/json لتجنب CORS Preflight.
   // الديفولت في fetch مع string body هو text/plain.
   try {
     await fetch(url, {
       method: 'POST',
-      body: JSON.stringify(contents),
+      body: JSON.stringify(data),
       // follow redirect لأن سيرفرات جوجل ترد بـ 302
       redirect: 'follow',
     });
@@ -79,13 +117,13 @@ async function pushRemote(url: string, contents: Content[]): Promise<void> {
     await fetch(url, {
       method: 'POST',
       mode: 'no-cors',
-      body: JSON.stringify(contents),
+      body: JSON.stringify(data),
     });
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-export function useGoogleDrive(onLoad: (contents: Content[]) => void) {
+export function useGoogleDrive(onLoad: (data: DriveData) => void) {
   const [status, setStatus] = useState<DriveStatus>('syncing');
   const [lastSynced, setLastSynced] = useState<Date | null>(() => {
     const s = localStorage.getItem(LS_LAST_SYNCED);
@@ -95,8 +133,8 @@ export function useGoogleDrive(onLoad: (contents: Content[]) => void) {
 
   const pushTimer  = useRef<ReturnType<typeof setTimeout>  | null>(null);
   const pollTimer  = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pending    = useRef<Content[] | null>(null);
-  const localRef   = useRef<Content[]>([]);
+  const pending    = useRef<DriveData | null>(null);
+  const localRef   = useRef<DriveData>({ contents: [], folders: [] });
   const remoteFpRef = useRef('');
   const onLoadRef  = useRef(onLoad);
   onLoadRef.current = onLoad;
@@ -121,7 +159,7 @@ export function useGoogleDrive(onLoad: (contents: Content[]) => void) {
         const merged = smartMerge(localRef.current, remote);
         onLoadRef.current(merged);
         markSynced();
-        if (merged.length > remote.length || fp(merged) !== rfp) {
+        if (fp(merged) !== rfp) {
           pushRemote(url, merged);
         }
       }
@@ -153,7 +191,7 @@ export function useGoogleDrive(onLoad: (contents: Content[]) => void) {
       remoteFpRef.current = fp(remote);
       const merged = smartMerge(localRef.current, remote);
       onLoadRef.current(merged);
-      if (merged.length > remote.length || fp(merged) !== fp(remote)) {
+      if (fp(merged) !== fp(remote)) {
         pushRemote(trimmed, merged);
       }
       markSynced();
@@ -179,9 +217,9 @@ export function useGoogleDrive(onLoad: (contents: Content[]) => void) {
     setError(null);
   }, [stopPolling]);
 
-  const scheduleSyncToDrive = useCallback((contents: Content[]) => {
-    localRef.current = contents;
-    pending.current  = contents;
+  const scheduleSyncToDrive = useCallback((data: DriveData) => {
+    localRef.current = data;
+    pending.current = data;
     if (pushTimer.current) clearTimeout(pushTimer.current);
     pushTimer.current = setTimeout(() => {
       if (!pending.current) return;

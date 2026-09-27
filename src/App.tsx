@@ -22,7 +22,7 @@ function App() {
     deleteContent,
     togglePublish,
     getContent,
-    replaceContents,
+    replaceSyncedData,
     exportToText,
     exportAllToText,
     exportToRtf,
@@ -40,22 +40,22 @@ function App() {
     status: driveStatus,
     error: driveError,
     scheduleSyncToDrive,
-  } = useGoogleDrive(replaceContents);
+  } = useGoogleDrive(replaceSyncedData);
 
   const activeContents = contents.filter(c => !c.isDeleted);
 
   // Auto-sync to Drive whenever contents change (after initial load)
   useEffect(() => {
     if (isLoaded) {
-      scheduleSyncToDrive(contents);
+      scheduleSyncToDrive({ contents, folders });
     }
-  }, [contents, isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [contents, folders, isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Also sync immediately when Drive first connects (uploads local data if Drive was empty)
   const prevDriveStatus = useRef(driveStatus);
   useEffect(() => {
     if (prevDriveStatus.current !== 'connected' && driveStatus === 'connected' && contents.length > 0) {
-      scheduleSyncToDrive(contents);
+      scheduleSyncToDrive({ contents, folders });
     }
     prevDriveStatus.current = driveStatus;
   }, [driveStatus]); // eslint-disable-line react-hooks/exhaustive-deps
