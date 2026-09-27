@@ -1,4 +1,4 @@
-import { Pen, BookOpen, FileText, Feather, Upload, ChevronDown } from 'lucide-react';
+import { Pen, BookOpen, FileText, Feather, Upload, ChevronDown, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -38,12 +38,12 @@ export function Header({ onNewContent, onExportAll, onImport, contentCount }: He
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo and Title */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="hidden w-10 h-10 rounded-xl bg-primary sm:flex items-center justify-center">
               <Feather className="w-6 h-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-primary">مَحبرة</h1>
+              <h1 className="text-lg sm:text-xl font-bold text-primary">مَحبرة</h1>
               <p className="text-xs text-muted-foreground hidden sm:block">
                 منصة المبدعين الأدبية
               </p>
@@ -59,7 +59,7 @@ export function Header({ onNewContent, onExportAll, onImport, contentCount }: He
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <ModeToggle />
             {/* Hidden file input for import */}
             <input
@@ -74,7 +74,7 @@ export function Header({ onNewContent, onExportAll, onImport, contentCount }: He
               variant="outline"
               size="sm"
               onClick={handleImportClick}
-              className="flex items-center gap-2"
+              className="hidden sm:flex items-center gap-2"
               title="استيراد"
             >
               <Upload className="w-4 h-4" />
@@ -86,7 +86,7 @@ export function Header({ onNewContent, onExportAll, onImport, contentCount }: He
                   variant="outline"
                   size="sm"
                   disabled={contentCount === 0}
-                  className="flex items-center gap-2"
+                  className="hidden sm:flex items-center gap-2"
                   title="تصدير الكل"
                 >
                   <FileText className="w-4 h-4" />
@@ -110,11 +110,43 @@ export function Header({ onNewContent, onExportAll, onImport, contentCount }: He
               </DropdownMenuContent>
             </DropdownMenu>
 
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="sm:hidden"
+                  title="خيارات الملفات"
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleImportClick}>
+                  <Upload className="w-4 h-4 ml-2" />
+                  استيراد
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={contentCount === 0} onClick={() => onExportAll('txt')}>
+                  <FileText className="w-4 h-4 ml-2" />
+                  تصدير نص عادي
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={contentCount === 0} onClick={() => onExportAll('rtf')}>
+                  <FileText className="w-4 h-4 ml-2" />
+                  تصدير Word
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={contentCount === 0} onClick={() => onExportAll('rtf-separate')}>
+                  <FileText className="w-4 h-4 ml-2" />
+                  تصدير ملفات Word منفصلة
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             {/* User Access Controls */}
             <SignedOut>
               <SignInButton mode="modal">
-                <Button variant="default" size="sm" className="items-center gap-2">
-                  تسجيل الدخول
+                <Button variant="default" size="sm" className="items-center gap-2 px-2 sm:px-3">
+                  <span className="hidden sm:inline">تسجيل الدخول</span>
+                  <span className="sm:hidden">دخول</span>
                 </Button>
               </SignInButton>
             </SignedOut>
