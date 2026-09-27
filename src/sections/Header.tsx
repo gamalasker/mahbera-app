@@ -74,10 +74,11 @@ export function Header({ onNewContent, onExportAll, onImport, contentCount }: He
               variant="outline"
               size="sm"
               onClick={handleImportClick}
-              className="hidden sm:flex items-center gap-2"
+              className="flex items-center gap-2"
+              title="استيراد"
             >
               <Upload className="w-4 h-4" />
-              استيراد
+              <span className="hidden sm:inline">استيراد</span>
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -85,10 +86,11 @@ export function Header({ onNewContent, onExportAll, onImport, contentCount }: He
                   variant="outline"
                   size="sm"
                   disabled={contentCount === 0}
-                  className="hidden sm:flex items-center gap-2"
+                  className="flex items-center gap-2"
+                  title="تصدير الكل"
                 >
                   <FileText className="w-4 h-4" />
-                  تصدير الكل
+                  <span className="hidden sm:inline">تصدير الكل</span>
                   <ChevronDown className="w-3 h-3" />
                 </Button>
               </DropdownMenuTrigger>

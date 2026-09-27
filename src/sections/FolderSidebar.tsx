@@ -74,7 +74,7 @@ export function FolderSidebar({
   };
 
   const itemBase =
-    'flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors';
+    'flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-sm cursor-pointer transition-colors touch-manipulation active:bg-muted';
 
   return (
     <div className="space-y-2">
@@ -139,10 +139,10 @@ export function FolderSidebar({
                 <DropdownMenuTrigger asChild>
                   <button
                     onClick={(e) => e.stopPropagation()}
-                    className="p-0.5 rounded hover:bg-black/10"
+                    className="p-1.5 -m-1 rounded hover:bg-black/10 touch-manipulation"
                     title="خيارات المجلد"
                   >
-                    <MoreVertical className="w-3.5 h-3.5" />
+                    <MoreVertical className="w-4 h-4" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
